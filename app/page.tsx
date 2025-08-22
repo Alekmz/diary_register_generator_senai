@@ -87,7 +87,7 @@ export default function Home() {
             Gerador de Registro de Diário
           </h1>
           <p className="text-gray-600">
-            Gere títulos e descrições de aulas usando IA
+            Feito pelo prof Alek 👻 e os estagiários (IA's)
           </p>
         </div>
 
