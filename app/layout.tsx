@@ -5,7 +5,7 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Gerador de Registro de Diário',
+  title: 'SDI - Senai Diário Inteligente',
   description: 'Sistema para gerar títulos e descrições de aulas usando IA',
 }
 
