@@ -10,8 +10,7 @@ export default function Home() {
   const [planoCurso, setPlanoCurso] = useState('');
   const [unidadeCurricular, setUnidadeCurricular] = useState('');
   const [estrategiaEnsino, setEstrategiaEnsino] = useState('');
-  const [generatedPrompt, setGeneratedPrompt] = useState('');
-  const [notebookUrl, setNotebookUrl] = useState('');
+  const [generatedData, setGeneratedData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,7 +41,7 @@ export default function Home() {
     setError(null);
 
     try {
-      const response = await fetch('/api/generate', {
+      const response = await fetch('/api/gemini/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -59,11 +58,14 @@ export default function Home() {
 
       if (response.ok) {
         const data = await response.json();
-        setGeneratedPrompt(data.prompt);
-        setNotebookUrl(data.notebookUrl);
+        if (data.ok) {
+          setGeneratedData(data.data);
+        } else {
+          setError(data.error || 'Erro ao gerar conteúdo');
+        }
       } else {
         const errorData = await response.json();
-        setError(errorData.error || 'Erro ao gerar prompt');
+        setError(errorData.error || 'Erro ao gerar conteúdo');
       }
     } catch (err) {
       setError('Erro de conexão');
@@ -73,8 +75,11 @@ export default function Home() {
   };
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(generatedPrompt);
-    alert('Prompt copiado para a área de transferência!');
+    if (generatedData) {
+      const jsonString = JSON.stringify(generatedData, null, 2);
+      navigator.clipboard.writeText(jsonString);
+      alert('Dados copiados para a área de transferência!');
+    }
   };
 
 
@@ -84,10 +89,10 @@ export default function Home() {
       <div className="max-w-4xl mx-auto px-4">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Gerador de Registro de Diário
+            SDI - Senai Diário Inteligente
           </h1>
           <p className="text-gray-600">
-            Feito pelo prof Alek 👻 e os estagiários (IA's)
+            Integrado com a IA Google Gemini
           </p>
         </div>
 
@@ -209,64 +214,126 @@ export default function Home() {
           </div>
         )}
 
-        {generatedPrompt && (
+        {generatedData && (
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-gray-900">Prompt Gerado</h2>
+              <h2 className="text-xl font-semibold text-gray-900">Diário de Aula Gerado</h2>
               <div className="flex space-x-2">
                 <button
                   onClick={copyToClipboard}
                   className="flex items-center px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
                 >
                   <Copy className="h-4 w-4 mr-1" />
-                  Copiar Prompt
+                  Copiar JSON
                 </button>
-                <a
-                  href={notebookUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
-                >
-                  <Edit className="h-4 w-4 mr-1" />
-                  Abrir Notebook LM
-                </a>
+                <div className="flex items-center px-3 py-1 text-sm bg-green-100 text-green-700 rounded-md">
+                  <span className="text-xs">
+                    {JSON.stringify(generatedData).length} caracteres
+                  </span>
+                </div>
               </div>
             </div>
             
-            <div className="bg-gray-50 rounded-md p-6 mb-6">
-              <pre className="whitespace-pre-wrap text-gray-800 font-sans text-sm leading-relaxed">
-                {generatedPrompt}
-              </pre>
-            </div>
-
-            {/* Iframe do Notebook LM */}
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-3">Notebook LM</h3>
-              <div className="bg-gray-100 rounded-md p-4">
-                <p className="text-sm text-gray-600 mb-3">
-                  Se o iframe não carregar, clique no link acima para abrir o Notebook LM em uma nova aba.
-                </p>
-                <iframe
-                  src={notebookUrl}
-                  width="100%"
-                  height="600px"
-                  className="border border-gray-300 rounded-md"
-                  title="Notebook LM"
-                  sandbox="allow-scripts allow-same-origin allow-forms"
-                >
-                  <p className="text-gray-600 text-center py-4">
-                    Seu navegador não suporta iframes. 
-                    <a 
-                      href={notebookUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 ml-1"
-                    >
-                      Clique aqui para abrir o Notebook LM
-                    </a>
-                  </p>
-                </iframe>
+            <div className="space-y-6">
+              {/* Informações Básicas */}
+              <div className="bg-gray-50 rounded-md p-4">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">Informações da Aula</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600">Título</label>
+                    <p className="text-gray-800">{generatedData.titulo}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600">Curso</label>
+                    <p className="text-gray-800">{generatedData.curso}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600">Unidade Curricular</label>
+                    <p className="text-gray-800">{generatedData.unidadeCurricular}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-600">Estratégia de Ensino</label>
+                    <p className="text-gray-800">{generatedData.estrategiaEnsino}</p>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-600">Descrição Original</label>
+                  <p className="text-gray-800 mt-1">{generatedData.descricao_original}</p>
+                </div>
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-600">Descrição Melhorada</label>
+                  <p className="text-gray-800 mt-1">{generatedData.descricao_melhorada}</p>
+                </div>
+                {generatedData.atividades && (
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-600">Atividades</label>
+                    <p className="text-gray-800 mt-1">{generatedData.atividades}</p>
+                  </div>
+                )}
               </div>
+
+              {/* Capacidades da UC - Todas */}
+              <div className="bg-blue-50 rounded-md p-4">
+                <h3 className="text-lg font-semibold text-blue-800 mb-3">
+                  Capacidades da UC - Todas
+                </h3>
+                {Array.isArray(generatedData.capacidadesUC_todas) ? (
+                  <ul className="space-y-2">
+                    {generatedData.capacidadesUC_todas.map((capacidade: string, index: number) => (
+                      <li key={index} className="flex items-start">
+                        <span className="text-blue-600 mr-2">•</span>
+                        <span className="text-gray-800">{capacidade}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-red-600 italic">{generatedData.capacidadesUC_todas}</p>
+                )}
+              </div>
+
+              {/* Capacidades Selecionadas */}
+              <div className="bg-green-50 rounded-md p-4">
+                <h3 className="text-lg font-semibold text-green-800 mb-3">
+                  Capacidades Relacionadas à Aula
+                </h3>
+                {Array.isArray(generatedData.capacidadesUC_selecionadas) ? (
+                  <ul className="space-y-2">
+                    {generatedData.capacidadesUC_selecionadas.map((capacidade: string, index: number) => (
+                      <li key={index} className="flex items-start">
+                        <span className="text-green-600 mr-2">•</span>
+                        <span className="text-gray-800">{capacidade}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-red-600 italic">{generatedData.capacidadesUC_selecionadas}</p>
+                )}
+              </div>
+
+              {/* Observações */}
+              {generatedData.observacoes && generatedData.observacoes.length > 0 && (
+                <div className="bg-yellow-50 rounded-md p-4">
+                  <h3 className="text-lg font-semibold text-yellow-800 mb-3">Observações</h3>
+                  <ul className="space-y-1">
+                    {generatedData.observacoes.map((obs: string, index: number) => (
+                      <li key={index} className="flex items-start">
+                        <span className="text-yellow-600 mr-2">⚠️</span>
+                        <span className="text-gray-800">{obs}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* JSON Raw (para debug) */}
+              <details className="bg-gray-100 rounded-md p-4">
+                <summary className="cursor-pointer text-sm font-medium text-gray-600">
+                  Ver JSON Completo (Debug)
+                </summary>
+                <pre className="mt-3 text-xs text-gray-700 overflow-auto">
+                  {JSON.stringify(generatedData, null, 2)}
+                </pre>
+              </details>
             </div>
           </div>
         )}
