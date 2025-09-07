@@ -9,7 +9,10 @@ export function getGenAI() {
   
   return genAI.getGenerativeModel({
     model: env.AI_MODEL_NAME,
-    systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+    systemInstruction: { 
+      role: "system",
+      parts: [{ text: SYSTEM_INSTRUCTION }] 
+    },
     generationConfig: {
       maxOutputTokens: env.AI_MAX_OUTPUT_TOKENS,
       temperature: 0.0,
