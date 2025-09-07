@@ -1,0 +1,67 @@
+{
+  "resources": [
+    {
+      "name": "Adaptação SC - CT Desenvolvimento de Sistemas Presencial",
+      "fileId": "files/qpa59c4tflgy",
+      "uri": "https://generativelanguage.googleapis.com/v1beta/files/qpa59c4tflgy",
+      "mimeType": "application/pdf",
+      "source": "local",
+      "type": "plano_curso",
+      "keywords": [
+        "desenvolvimento",
+        "sistemas",
+        "presencial",
+        "sc",
+        "ct",
+        "desenvolvimento de sistemas"
+      ]
+    },
+    {
+      "name": "Projeto de Curso_Informática para Internet 1000 SENAI SED",
+      "fileId": "files/quh5vwvse82l",
+      "uri": "https://generativelanguage.googleapis.com/v1beta/files/quh5vwvse82l",
+      "mimeType": "application/pdf",
+      "source": "local",
+      "type": "plano_curso",
+      "keywords": [
+        "informática",
+        "internet",
+        "senai",
+        "sed",
+        "1000",
+        "informática para internet"
+      ]
+    },
+    {
+      "name": "Projeto de Curso_Programação de Jogos Digitais 1000 SENAI SED",
+      "fileId": "files/cw4tcs4p8nwx",
+      "uri": "https://generativelanguage.googleapis.com/v1beta/files/cw4tcs4p8nwx",
+      "mimeType": "application/pdf",
+      "source": "local",
+      "type": "plano_curso",
+      "keywords": [
+        "programação",
+        "jogos",
+        "digitais",
+        "senai",
+        "sed",
+        "1000",
+        "programação de jogos"
+      ]
+    },
+    {
+      "name": "arquivos_MSEP",
+      "fileId": "files/8up4hn52gi4d",
+      "uri": "https://generativelanguage.googleapis.com/v1beta/files/8up4hn52gi4d",
+      "mimeType": "application/pdf",
+      "source": "local",
+      "type": "metodologia",
+      "keywords": [
+        "metodologia",
+        "msep",
+        "ensino",
+        "estratégias"
+      ]
+    }
+  ]
+}
