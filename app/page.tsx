@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Copy, Edit, Loader2, Send } from 'lucide-react';
+import SimpleCombobox from '@/src/ui/components/SimpleCombobox';
+import MultiSelect from '@/src/ui/components/MultiSelect';
 
 export default function Home() {
   const [titulo, setTitulo] = useState('');
@@ -9,10 +11,99 @@ export default function Home() {
   const [atividade, setAtividade] = useState('');
   const [planoCurso, setPlanoCurso] = useState('');
   const [unidadeCurricular, setUnidadeCurricular] = useState('');
-  const [estrategiaEnsino, setEstrategiaEnsino] = useState('');
+  const [estrategiaEnsino, setEstrategiaEnsino] = useState<string[]>([]);
   const [generatedData, setGeneratedData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Opções para os comboboxes
+  const cursosOptions = [
+    'Técnico em Desenvolvimento de Sistemas',
+    'Técnico em Informática para Internet',
+    'Técnico em Programação de Jogos Digitais'
+  ];
+
+  const estrategiasOptions = [
+    'Design Thinking',
+    'Trabalho em Grupo',
+    'Atividade Prática',
+    'Exposição Dialogada'
+  ];
+
+  // Unidades curriculares por curso
+  const unidadesPorCurso = {
+    'Técnico em Desenvolvimento de Sistemas': [
+      'Introdução à Tecnologia da Informação e Comunicação',
+      'Lógica de Programação',
+      'Fundamentos de Eletroeletrônica Aplicada',
+      'Introdução ao Desenvolvimento de Projetos',
+      'Modelagem de Sistemas',
+      'Banco de Dados',
+      'Programação de Aplicativos',
+      'Sustentabilidade nos processos industriais',
+      'Introdução à Qualidade e Produtividade',
+      'Desenvolvimento de Sistemas',
+      'Teste de Sistemas',
+      'Introdução à Indústria 4.0',
+      'Saúde e Segurança no Trabalho',
+      'Internet das Coisas',
+      'Implantação de Sistemas',
+      'Manutenção de Sistemas'
+    ],
+    'Técnico em Informática para Internet': [
+      'Introdução à Tecnologia da Informação e Comunicação',
+      'Introdução ao Desenvolvimento de Projetos',
+      'Introdução a Indústria 4.0',
+      'Arquitetura de Hardware e Software',
+      'Versionamento e Colaboração',
+      'Lógica de Programação',
+      'Fundamentos de UI / UX',
+      'Codificação para Front-End',
+      'Interação com APIs',
+      'Testes de Front-End',
+      'Projeto de Front-End',
+      'Sustentabilidade nos processos industriais',
+      'Introdução a Qualidade e Produtividade',
+      'Codificação para Back-End',
+      'Desenvolvimento de APIs',
+      'Banco de Dados',
+      'Testes de Back-End',
+      'Projeto de Back-End',
+      'Saúde e Segurança no Trabalho'
+    ],
+    'Técnico em Programação de Jogos Digitais': [
+      'Introdução à Tecnologia da Informação e Comunicação',
+      'Introdução ao Desenvolvimento de Projetos',
+      'Saúde e Segurança no Trabalho',
+      'Sustentabilidade nos processos industriais',
+      'Introdução a Qualidade e Produtividade',
+      'Introdução a Indústria 4.0',
+      'Arquitetura de Hardware e Software',
+      'Fundamentos de UI / UX Design',
+      'Metodologias de Desenvolvimento de Projetos',
+      'Lógica de Programação',
+      'Versionamento e Colaboração',
+      'Fundamentos de Jogos Digitais',
+      'Fundamentos do Design de elementos gráficos de Jogos Digitais',
+      'Fundamentos de Programação de Jogos Digitais',
+      'Planejamento de elementos multimídia de Jogos Digitais',
+      'Produção de elementos multimídia para Jogos Digitais',
+      'Planejamento e Publicação de Jogos Digitais',
+      'Codificação de sistemas de Jogos Digitais',
+      'Testes de Jogos Digitais',
+      'Manutenção de Jogos Digitais'
+    ]
+  };
+
+  // Unidades curriculares disponíveis baseadas no curso selecionado
+  const unidadesDisponiveis = useMemo(() => {
+    return planoCurso ? (unidadesPorCurso[planoCurso as keyof typeof unidadesPorCurso] || []) : [];
+  }, [planoCurso]);
+
+  // Limpar unidade curricular quando o curso mudar
+  useEffect(() => {
+    setUnidadeCurricular('');
+  }, [planoCurso]);
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,8 +123,8 @@ export default function Home() {
       return;
     }
 
-    if (!estrategiaEnsino.trim()) {
-      alert('Por favor, preencha a estratégia de ensino');
+    if (estrategiaEnsino.length === 0) {
+      alert('Por favor, selecione pelo menos uma estratégia de ensino');
       return;
     }
 
@@ -52,7 +143,7 @@ export default function Home() {
           atividade, 
           planoCurso, 
           unidadeCurricular, 
-          estrategiaEnsino 
+          estrategiaEnsino: estrategiaEnsino.join(', ') 
         }),
       });
 
@@ -143,47 +234,38 @@ export default function Home() {
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="planoCurso" className="block text-sm font-medium text-gray-700 mb-2">
-                    Plano de Curso *
-                  </label>
-                  <input
-                    type="text"
+                  <SimpleCombobox
                     id="planoCurso"
+                    label="Plano de Curso"
+                    placeholder="Digite para buscar o curso..."
+                    options={cursosOptions}
                     value={planoCurso}
-                    onChange={(e) => setPlanoCurso(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-800 placeholder-gray-500"
-                    placeholder="Ex: Plano de Engenharia Civil"
+                    onChange={setPlanoCurso}
                     required
                   />
                 </div>
 
               <div>
-                <label htmlFor="unidadeCurricular" className="block text-sm font-medium text-gray-700 mb-2">
-                  Unidade Curricular *
-                </label>
-                <input
-                  type="text"
+                <SimpleCombobox
                   id="unidadeCurricular"
+                  label="Unidade Curricular"
+                  placeholder={planoCurso ? "Digite para buscar a unidade..." : "Selecione primeiro o curso"}
+                  options={unidadesDisponiveis}
                   value={unidadeCurricular}
-                  onChange={(e) => setUnidadeCurricular(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-800 placeholder-gray-500"
-                  placeholder="Ex: Matemática Aplicada"
+                  onChange={setUnidadeCurricular}
                   required
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="estrategiaEnsino" className="block text-sm font-medium text-gray-700 mb-2">
-                Estratégia de Ensino *
-              </label>
-              <textarea
+              <MultiSelect
                 id="estrategiaEnsino"
+                label="Estratégia de Ensino"
+                placeholder="Digite para buscar estratégias..."
+                options={estrategiasOptions}
                 value={estrategiaEnsino}
-                onChange={(e) => setEstrategiaEnsino(e.target.value)}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-800 placeholder-gray-500"
-                placeholder="Digite a estratégia de ensino que será utilizada..."
+                onChange={setEstrategiaEnsino}
                 required
               />
             </div>

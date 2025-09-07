@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "catalogs": {
+    "planoDeCurso": {
+      "placeholder": "Selecione ou digite para buscar...",
+      "noOptionsText": "Nenhum curso encontrado",
+      "options": [
+        {
+          "value": "tecnico-desenvolvimento-de-sistemas",
+          "label": "Técnico em Desenvolvimento de Sistemas",
+          "aliases": ["desenvolvimento de sistemas", "tds", "tec. desenvolvimento de sistemas"]
+        },
+        {
+          "value": "tecnico-informatica-para-internet",
+          "label": "Técnico em Informática para Internet",
+          "aliases": ["informática para internet", "tii", "tec. informática para internet"]
+        },
+        {
+          "value": "tecnico-programacao-de-jogos-digitais",
+          "label": "Técnico em Programação de Jogos Digitais",
+          "aliases": ["programação de jogos digitais", "jogos digitais", "tpjd"]
+        }
+      ]
+    },
+    "estrategiaEnsino": {
+      "placeholder": "Selecione ou digite para buscar...",
+      "noOptionsText": "Nenhuma estratégia encontrada",
+      "options": [
+        {
+          "value": "design-thinking",
+          "label": "Design Thinking",
+          "aliases": ["dt", "design thinking"]
+        },
+        {
+          "value": "trabalho-em-grupo",
+          "label": "Trabalho em Grupo",
+          "aliases": ["grupo", "colaborativo", "trabalho em equipe"]
+        },
+        {
+          "value": "atividade-pratica",
+          "label": "Atividade Prática",
+          "aliases": ["prática", "hands-on", "atividade pratica"]
+        },
+        {
+          "value": "exposicao-dialogada",
+          "label": "Exposição Dialogada",
+          "aliases": ["aula dialogada", "dialogada"]
+        }
+      ]
+    }
+  }
+}
