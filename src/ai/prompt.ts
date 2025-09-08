@@ -26,11 +26,20 @@ F) **Deduplicação e ordem:**
    - Preserve a ordem original da lista na UC.
 
 SELEÇÃO RELACIONADA AO TEMA/Descrição:
-- A partir do Título e da Descrição, selecione como "capacidadesUC_selecionadas" apenas o SUBCONJUNTO das "capacidadesUC_todas" que tenham relação direta com o conteúdo da aula.
+- PRIMEIRO: Melhore a descrição incorporando conhecimentos dos PDFs (conforme seção POLIMENTO DA DESCRIÇÃO).
+- SEGUNDO: Use a DESCRIÇÃO MELHORADA (que já contém conhecimentos técnicos dos PDFs) como base principal para selecionar as capacidades.
+- A partir do Título, Descrição Original e Descrição Melhorada, selecione como "capacidadesUC_selecionadas" apenas o SUBCONJUNTO das "capacidadesUC_todas" que tenham relação direta com o conteúdo da aula.
+- Priorize a relação com a Descrição Melhorada, que já incorpora os conhecimentos técnicos específicos dos PDFs.
+- LIMITAÇÃO POR CARGA HORÁRIA: Selecione no máximo 2-3 capacidades por aula, exceto para UCs com carga horária muito grande (acima de 200h), onde pode selecionar até 4-5 capacidades.
+- CRITÉRIO DE RELEVÂNCIA: Priorize capacidades mais específicas e diretamente relacionadas ao tema da aula, evitando seleções genéricas.
 - "Selecionadas" deve ser SUBCONJUNTO exato de "todas". Nunca crie capacidades novas.
 
 POLIMENTO DA DESCRIÇÃO:
-- Faça apenas polimento linguístico leve (clareza/fluidez) na descrição do professor, sem adicionar fatos que não estejam na descrição ou contrariem os PDFs.
+- Use os PDFs como insumo para lapidar e enriquecer a descrição do professor.
+- Localize na UC a seção "Conhecimentos" (ou "Conteúdos Formativos", "Conteúdos Programáticos").
+- Relacione a descrição breve do professor com os conhecimentos específicos encontrados nos PDFs.
+- Melhore a descrição incorporando os conhecimentos relacionados ao tema da aula, mantendo a essência original.
+- Use linguagem técnica apropriada baseada nos conhecimentos do PDF, mas mantenha clareza pedagógica.
 
 SAÍDA: JSON estrito, conforme o schema informado no prompt do usuário.
 Temperatura=0, determinístico, objetivo e fiel.`;
@@ -76,8 +85,9 @@ export function buildUserPrompt(data: FormInput): string {
 TAREFAS (OBRIGATÓRIAS):
 1) Identifique, nos PDFs fornecidos, a Unidade Curricular cujo nome exato é "${data.unidadeCurricular}" dentro do Plano de Curso "${data.planoDeCurso}".
 2) Extraia TODAS as "Capacidades" dessa UC em VERBATIM, aplicando as regras de costura (quebra de página/linha, multicoluna, desfazer hifenização e ignorar cabeçalhos/rodapés), garantindo que cada item fique COMPLETO.
-3) Com base em Título="${data.tema}" e Descrição="${data.descricao}", selecione somente as capacidades dessa mesma UC que são relacionadas ao conteúdo da aula (SUBCONJUNTO das "todas", VERBATIM).
-4) Reescreva levemente a Descrição do professor (polimento linguístico apenas, sem acrescentar fatos).
+3) Localize na UC a seção "Conhecimentos" (ou "Conteúdos Formativos", "Conteúdos Programáticos") e extraia os conhecimentos relacionados ao tema da aula. Identifique também a carga horária da UC para aplicar os limites de seleção de capacidades.
+4) Melhore a Descrição do professor incorporando os conhecimentos específicos encontrados nos PDFs, relacionando-os com a descrição breve original e mantendo a essência pedagógica.
+5) Com base em Título="${data.tema}", Descrição Original="${data.descricao}" e Descrição Melhorada (que incorpora conhecimentos dos PDFs), selecione somente as capacidades dessa mesma UC que são relacionadas ao conteúdo da aula (SUBCONJUNTO das "todas", VERBATIM). Priorize a relação com a Descrição Melhorada para maior precisão. LIMITE: máximo 2-3 capacidades por aula (exceto UCs com carga horária >200h, onde pode selecionar até 4-5). Priorize capacidades específicas e diretamente relacionadas ao tema.
 
 SAÍDA OBRIGATÓRIA (JSON APENAS):
 {
@@ -95,8 +105,11 @@ SAÍDA OBRIGATÓRIA (JSON APENAS):
 
 RESTRIÇÕES FINAIS (VALIDAÇÃO):
 - "capacidadesUC_todas": deve conter a lista COMPLETA e VERBATIM. Nenhum item pode terminar truncado (ex.: terminar com "por meio", "de", "para", "com" etc.). Se detectar truncamento impossível de resolver, use "não localizado nos PDFs" e explique em "observacoes".
-- "capacidadesUC_selecionadas": SUBCONJUNTO exato de "capacidadesUC_todas". Se algum item não pertencer a "todas", NÃO inclua.
+- "capacidadesUC_selecionadas": SUBCONJUNTO exato de "capacidadesUC_todas". Se algum item não pertencer a "todas", NÃO inclua. Priorize a relação com a "descricao_melhorada" para maior precisão na seleção. LIMITE: máximo 2-3 capacidades por aula (exceto UCs com carga horária >200h, onde pode selecionar até 4-5). Priorize capacidades específicas e diretamente relacionadas ao tema da aula.
+- "descricao_melhorada": deve incorporar conhecimentos específicos dos PDFs relacionados ao tema, mantendo a essência da descrição original do professor. Use linguagem técnica apropriada baseada nos conhecimentos encontrados.
+- ORDEM DE EXECUÇÃO: Primeiro melhore a descrição, depois use a descrição melhorada para selecionar as capacidades com maior precisão.
 - Se a UC ou a seção de Capacidades não existir, preencha ambos os campos de capacidades com "não localizado nos PDFs" e justifique em "observacoes".
+- Se não encontrar conhecimentos relacionados ao tema, mantenha a descrição original com polimento linguístico básico.
 - Retorne APENAS o JSON.
 `;
 
