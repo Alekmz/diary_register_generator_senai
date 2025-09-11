@@ -157,3 +157,10 @@ export async function getMetodologiaResource(): Promise<Resource | null> {
   const metodologia = store.resources.find(r => r.type === "metodologia");
   return metodologia || null;
 }
+
+export async function clearResourcesCache(): Promise<void> {
+  console.log('[AI] Limpando cache de recursos devido a erro 403...');
+  const emptyStore: Store = { resources: [] };
+  await writeStore(emptyStore);
+  console.log('[AI] Cache de recursos limpo com sucesso');
+}

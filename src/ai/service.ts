@@ -4,7 +4,8 @@ import {
   ensurePdfUploaded, 
   findPlanoCursoByKeywords, 
   getMetodologiaResource,
-  getAllResources
+  getAllResources,
+  clearResourcesCache
 } from "./files";
 import { SYSTEM_INSTRUCTION } from "./prompt";
 import { PLANOS_CURSO_CONFIG, METODOLOGIA_CONFIG } from "./pdf-config";
@@ -16,6 +17,19 @@ import crypto from "crypto";
 // Cache simples em memória para reduzir chamadas ao Gemini
 const responseCache = new Map<string, { response: OutputDTO; timestamp: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+
+// Função para detectar erros 403 relacionados a arquivos
+function isFilePermissionError(error: any): boolean {
+  const message = error?.message || '';
+  return (
+    message.includes('403') || 
+    message.includes('Forbidden') ||
+    message.includes('permission') ||
+    message.includes('access') ||
+    message.includes('not exist') ||
+    message.includes('File') && (message.includes('403') || message.includes('Forbidden'))
+  );
+}
 
 function tryParseJsonStrict(s: string): OutputDTO {
   // Limpar markdown se presente
@@ -128,25 +142,58 @@ export async function generateFromGemini(userPrompt: string, planoCurso: string)
     }
   }
 
-  console.log(`[AI] Iniciando upload de PDFs...`);
-  await ensureBasePdfsUploaded();
-  
-  // Buscar os recursos específicos
-  console.log(`[AI] Buscando plano de curso: "${planoCurso}"`);
-  const planoCursoResource = await findPlanoCursoByKeywords(planoCurso);
-  const metodologiaResource = await getMetodologiaResource();
-  
-  console.log(`[AI] Plano de curso encontrado: ${planoCursoResource?.fileId}`);
-  console.log(`[AI] Metodologia encontrada: ${metodologiaResource?.fileId}`);
-  
-  if (!planoCursoResource) {
-    throw new Error(`Plano de curso "${planoCurso}" não encontrado nos arquivos disponíveis.`);
-  }
-  
-  if (!metodologiaResource) {
-    throw new Error("Arquivo de metodologia não encontrado.");
-  }
+  // Tentar até 2 vezes: primeira tentativa normal, segunda com limpeza de cache
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      console.log(`[AI] Tentativa ${attempt}/2 - Iniciando upload de PDFs...`);
+      await ensureBasePdfsUploaded();
+      
+      // Buscar os recursos específicos
+      console.log(`[AI] Buscando plano de curso: "${planoCurso}"`);
+      const planoCursoResource = await findPlanoCursoByKeywords(planoCurso);
+      const metodologiaResource = await getMetodologiaResource();
+      
+      console.log(`[AI] Plano de curso encontrado: ${planoCursoResource?.fileId}`);
+      console.log(`[AI] Metodologia encontrada: ${metodologiaResource?.fileId}`);
+      
+      if (!planoCursoResource) {
+        throw new Error(`Plano de curso "${planoCurso}" não encontrado nos arquivos disponíveis.`);
+      }
+      
+      if (!metodologiaResource) {
+        throw new Error("Arquivo de metodologia não encontrado.");
+      }
 
+      // Tentar gerar com os recursos encontrados
+      return await attemptGeneration(userPrompt, planoCursoResource, metodologiaResource, cacheKey);
+      
+    } catch (error: any) {
+      console.log(`[AI] Erro na tentativa ${attempt}:`, error.message);
+      
+      // Se é erro de permissão de arquivo e ainda temos tentativas
+      if (isFilePermissionError(error) && attempt === 1) {
+        console.log('[AI] Detectado erro 403 relacionado a arquivos. Limpando cache e tentando novamente...');
+        await clearResourcesCache();
+        // Limpar também o cache de respostas para evitar usar dados corrompidos
+        responseCache.clear();
+        continue; // Tentar novamente
+      }
+      
+      // Se não é erro de arquivo ou já tentamos 2 vezes, relançar o erro
+      throw error;
+    }
+  }
+  
+  throw new Error("Todas as tentativas falharam");
+}
+
+// Função separada para tentar a geração com os recursos já carregados
+async function attemptGeneration(
+  userPrompt: string, 
+  planoCursoResource: any, 
+  metodologiaResource: any, 
+  cacheKey: string
+): Promise<OutputDTO> {
   // Tentar diferentes modelos em caso de rate limit
   let lastError: any;
   
@@ -261,6 +308,11 @@ export async function generateFromGemini(userPrompt: string, planoCurso: string)
     } catch (error: any) {
       lastError = error;
       console.log(`[AI] Erro com modelo ${modelName}:`, error.message);
+      
+      // Se é erro de permissão de arquivo, relançar para ser tratado pelo nível superior
+      if (isFilePermissionError(error)) {
+        throw error;
+      }
       
       // Se não é erro de rate limit, não tentar outros modelos
       if (!error.message?.includes('429') && !error.message?.includes('quota')) {
