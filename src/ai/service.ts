@@ -5,7 +5,8 @@ import {
   findPlanoCursoByKeywords, 
   getMetodologiaResource,
   getAllResources,
-  clearResourcesCache
+  clearResourcesCache,
+  getStorageInfo
 } from "./files";
 import { SYSTEM_INSTRUCTION } from "./prompt";
 import { PLANOS_CURSO_CONFIG, METODOLOGIA_CONFIG } from "./pdf-config";
@@ -126,6 +127,10 @@ export async function generateFromGemini(userPrompt: string, planoCurso: string)
     // fallback: monta DTO com dados do formulário e marca capacidades como "não localizado..."
     throw new Error("AI desabilitado; habilite AI_GEMINI_ENABLED para geração.");
   }
+
+  // Verificar tipo de armazenamento
+  const storageInfo = await getStorageInfo();
+  console.log(`[AI] Usando armazenamento: ${storageInfo.type} (read-only: ${storageInfo.isReadOnly})`);
 
   // Gerar chave de cache baseada no prompt e plano de curso
   const cacheKey = crypto

@@ -16,7 +16,42 @@ type Resource = {
 };
 type Store = { resources: Resource[] };
 
+// Cache em memória para ambientes read-only (serverless)
+let memoryCache: Store = { resources: [] };
+let isReadOnlyFS = false;
+
+// Detectar se o sistema de arquivos é somente leitura
+async function detectReadOnlyFS(): Promise<boolean> {
+  if (isReadOnlyFS !== false) return isReadOnlyFS;
+  
+  try {
+    // Tentar criar um arquivo temporário para testar
+    const testPath = path.join(process.cwd(), "src", "data", ".test-write");
+    await fs.writeFile(testPath, "test");
+    await fs.unlink(testPath); // Limpar arquivo de teste
+    isReadOnlyFS = false;
+    console.log('[AI] Sistema de arquivos é gravável');
+  } catch (error: any) {
+    if (error.code === 'EROFS' || error.code === 'EACCES' || error.message?.includes('read-only')) {
+      isReadOnlyFS = true;
+      console.log('[AI] Sistema de arquivos é somente leitura - usando cache em memória');
+    } else {
+      isReadOnlyFS = false;
+      console.log('[AI] Sistema de arquivos é gravável');
+    }
+  }
+  
+  return isReadOnlyFS;
+}
+
 async function readStore(): Promise<Store> {
+  const isReadOnly = await detectReadOnlyFS();
+  
+  if (isReadOnly) {
+    console.log('[AI] Lendo cache em memória (sistema read-only)');
+    return memoryCache;
+  }
+  
   try { 
     return JSON.parse(await fs.readFile(DB_PATH, "utf-8")); 
   }
@@ -26,8 +61,26 @@ async function readStore(): Promise<Store> {
 }
 
 async function writeStore(data: Store) {
-  await fs.mkdir(path.dirname(DB_PATH), { recursive: true });
-  await fs.writeFile(DB_PATH, JSON.stringify(data, null, 2));
+  const isReadOnly = await detectReadOnlyFS();
+  
+  if (isReadOnly) {
+    console.log('[AI] Salvando cache em memória (sistema read-only)');
+    memoryCache = data;
+    return;
+  }
+  
+  try {
+    await fs.mkdir(path.dirname(DB_PATH), { recursive: true });
+    await fs.writeFile(DB_PATH, JSON.stringify(data, null, 2));
+  } catch (error: any) {
+    // Se falhar ao escrever no disco, usar cache em memória
+    if (error.code === 'EROFS' || error.code === 'EACCES') {
+      console.log('[AI] Fallback para cache em memória devido a erro de escrita');
+      memoryCache = data;
+    } else {
+      throw error;
+    }
+  }
 }
 
 export async function ensurePdfUploaded(
@@ -163,4 +216,13 @@ export async function clearResourcesCache(): Promise<void> {
   const emptyStore: Store = { resources: [] };
   await writeStore(emptyStore);
   console.log('[AI] Cache de recursos limpo com sucesso');
+}
+
+// Função para obter informações sobre o tipo de armazenamento atual
+export async function getStorageInfo(): Promise<{ type: 'file' | 'memory'; isReadOnly: boolean }> {
+  const isReadOnly = await detectReadOnlyFS();
+  return {
+    type: isReadOnly ? 'memory' : 'file',
+    isReadOnly
+  };
 }
