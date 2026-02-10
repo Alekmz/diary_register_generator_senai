@@ -18,11 +18,11 @@ type Store = { resources: Resource[] };
 
 // Cache em memória para ambientes read-only (serverless)
 let memoryCache: Store = { resources: [] };
-let isReadOnlyFS = false;
+let isReadOnlyFS: boolean | null = null;
 
 // Detectar se o sistema de arquivos é somente leitura
 async function detectReadOnlyFS(): Promise<boolean> {
-  if (isReadOnlyFS !== false) return isReadOnlyFS;
+  if (isReadOnlyFS !== null) return isReadOnlyFS;
   
   try {
     // Tentar criar um arquivo temporário para testar
@@ -47,7 +47,9 @@ async function detectReadOnlyFS(): Promise<boolean> {
 async function readStore(): Promise<Store> {
   const isReadOnly = await detectReadOnlyFS();
   
-  if (isReadOnly) {
+  // Em serverless (read-only), ainda conseguimos LER arquivos empacotados no deploy.
+  // Portanto: preferir cache em memória (se já populado) e, caso vazio, tentar ler do arquivo.
+  if (isReadOnly && memoryCache.resources.length > 0) {
     console.log('[AI] Lendo cache em memória (sistema read-only)');
     return memoryCache;
   }
@@ -56,7 +58,7 @@ async function readStore(): Promise<Store> {
     return JSON.parse(await fs.readFile(DB_PATH, "utf-8")); 
   }
   catch { 
-    return { resources: [] }; 
+    return isReadOnly ? memoryCache : { resources: [] };
   }
 }
 

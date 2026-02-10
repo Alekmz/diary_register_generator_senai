@@ -1,5 +1,4 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getGenAI } from "./client";
 import { 
   ensurePdfUploaded, 
   findPlanoCursoByKeywords, 
@@ -114,10 +113,14 @@ async function withRetries<T>(fn: () => Promise<T>, tries=5, baseMs=1000): Promi
 }
 
 // Lista de modelos para fallback em caso de rate limit
-// PRIORIZAR modelos 2.5 que suportam PDFs melhor
+// Observação:
+// - Modelos "preview" mudam mais rápido. Use env.AI_MODEL_NAME para controlar.
+// - Ordem prioriza velocidade (Flash) e depois qualidade (Pro).
 const FALLBACK_MODELS = [
-  "gemini-2.5-flash",  // Suporta PDFs, mais rápido
-  "gemini-2.5-pro",    // Suporta PDFs, mais preciso
+  "gemini-3-flash-preview", // mais recente (preview), tende a ser rápido
+  "gemini-2.5-flash",       // estável (GA), bom custo/latência
+  "gemini-3-pro-preview",   // mais forte (preview), melhor para casos difíceis
+  "gemini-2.5-pro",         // estável (GA), mais preciso
   "gemini-1.5-flash",  // Fallback
   "gemini-1.5-pro",    // Fallback
 ];
@@ -199,50 +202,59 @@ async function attemptGeneration(
   metodologiaResource: any, 
   cacheKey: string
 ): Promise<OutputDTO> {
-  // Tentar diferentes modelos em caso de rate limit
+  // Tentar diferentes modelos (env primeiro) e fallback em caso de rate limit
   let lastError: any;
   
-  for (const modelName of FALLBACK_MODELS) {
+  const modelsToTry = Array.from(new Set([env.AI_MODEL_NAME, ...FALLBACK_MODELS].filter(Boolean)));
+  const genAI = new GoogleGenerativeAI(env.GOOGLE_AI_API_KEY);
+
+  const buildParts = (promptText: string) => ([
+    {
+      fileData: { 
+        fileUri: planoCursoResource.uri, 
+        mimeType: planoCursoResource.mimeType 
+      }
+    },
+    {
+      fileData: { 
+        fileUri: metodologiaResource.uri, 
+        mimeType: metodologiaResource.mimeType 
+      }
+    },
+    { text: promptText }
+  ]);
+
+  const callOnce = async (modelName: string, promptText: string) => {
+    const model = genAI.getGenerativeModel({
+      model: modelName,
+      systemInstruction: { 
+        role: "system",
+        parts: [{ text: SYSTEM_INSTRUCTION }] 
+      },
+      generationConfig: {
+        maxOutputTokens: env.AI_MAX_OUTPUT_TOKENS,
+        temperature: 0.0,
+        // Ajuda o modelo a manter JSON válido e reduz "ruído"
+        responseMimeType: "application/json",
+      },
+    });
+
+    const parts = buildParts(promptText);
+    console.log(`[AI] Enviando request com ${parts.length} parts`);
+    console.log(`[AI] PDF 1 URI: ${planoCursoResource.uri}`);
+    console.log(`[AI] PDF 2 URI: ${metodologiaResource.uri}`);
+
+    const res = await model.generateContent({ contents: [{ role: "user", parts }] });
+    const text = res.response.text();
+    return text?.trim() ?? "";
+  };
+
+  for (const modelName of modelsToTry) {
     try {
       console.log(`[AI] Tentando modelo: ${modelName}`);
-      
-      const genAI = new GoogleGenerativeAI(env.GOOGLE_AI_API_KEY);
-      const model = genAI.getGenerativeModel({
-        model: modelName,
-        generationConfig: {
-          maxOutputTokens: env.AI_MAX_OUTPUT_TOKENS,
-          temperature: 0.0,
-        },
-      });
 
       const result = await withRetries(async () => {
-        // Construir o prompt com system instruction
-        const fullPrompt = `${SYSTEM_INSTRUCTION}\n\n${userPrompt}`;
-        
-        // Usar URIs completas para todos os modelos
-        const parts = [
-          {
-            fileData: { 
-              fileUri: planoCursoResource.uri, 
-              mimeType: planoCursoResource.mimeType 
-            }
-          },
-          {
-            fileData: { 
-              fileUri: metodologiaResource.uri, 
-              mimeType: metodologiaResource.mimeType 
-            }
-          },
-          { text: fullPrompt }
-        ];
-
-        console.log(`[AI] Enviando request com ${parts.length} parts`);
-        console.log(`[AI] PDF 1 URI: ${planoCursoResource.uri}`);
-        console.log(`[AI] PDF 2 URI: ${metodologiaResource.uri}`);
-        
-        const res = await model.generateContent({ contents: [{ role: "user", parts }] });
-        const text = res.response.text();
-        return text?.trim() ?? "";
+        return await callOnce(modelName, userPrompt);
       });
 
       if (result) {
@@ -270,6 +282,53 @@ async function attemptGeneration(
             dto.observacoes.push(
               "Uma ou mais capacidades parecem truncadas (ex.: terminam com preposição ou sem pontuação). Verifique se o PDF possui quebra de página/linha nessa seção."
             );
+
+            // Tentativa extra para melhorar quebras de página/linha:
+            // Se detectarmos itens truncados, tentar uma segunda passada com modelo mais forte.
+            if (env.AI_REPAIR_TRUNCATION_ENABLED) {
+              const repairModels = ["gemini-3-pro-preview", "gemini-2.5-pro"].filter(m => m !== modelName);
+              for (const repairModel of repairModels) {
+                try {
+                  console.log(`[AI] Tentando reparo de truncamento com: ${repairModel}`);
+                  const repairPrompt =
+                    `${userPrompt}\n\n` +
+                    `REPARO (OBRIGATÓRIO): Na tentativa anterior, algumas capacidades aparentaram estar truncadas por quebras de página/linha.\n` +
+                    `Re-faça a EXTRAÇÃO de "capacidadesUC_todas" e "capacidadesUC_selecionadas" garantindo que cada item esteja COMPLETO.\n` +
+                    `Itens suspeitos (não confie neles; use apenas como pista):\n` +
+                    suspeitas.map(s => `- ${s}`).join("\n") +
+                    `\n\nResponda APENAS com o JSON no schema exigido.`;
+
+                  const repairedRaw = await withRetries(async () => callOnce(repairModel, repairPrompt), 3, 1500);
+                  const repaired = tryParseJsonStrict(repairedRaw);
+
+                  const repairedSuspeitas = Array.isArray(repaired.capacidadesUC_todas)
+                    ? repaired.capacidadesUC_todas.filter(provávelTruncamento)
+                    : [];
+
+                  // Se o reparo reduziu truncamentos, preferir o reparo
+                  if (repairedSuspeitas.length < suspeitas.length) {
+                    repaired.observacoes ??= [];
+                    repaired.observacoes.push("Reparo aplicado: segunda passada para corrigir possíveis quebras de página/linha em capacidades.");
+
+                    // Enforce: selecionadas ⊆ todas (mesma regra da resposta normal)
+                    const repTodas = Array.isArray(repaired.capacidadesUC_todas) ? repaired.capacidadesUC_todas : null;
+                    const repSel   = Array.isArray(repaired.capacidadesUC_selecionadas) ? repaired.capacidadesUC_selecionadas : null;
+                    if (repTodas && repSel) {
+                      const setTodas = new Set(repTodas.map(s => s.trim()));
+                      const filtered = repSel.filter(s => setTodas.has(s.trim()));
+                      if (filtered.length !== repSel.length) {
+                        repaired.observacoes.push("Ajuste automático (reparo): removidas capacidades não presentes em 'capacidadesUC_todas' (verbatim).");
+                        repaired.capacidadesUC_selecionadas = filtered;
+                      }
+                    }
+
+                    return repaired;
+                  }
+                } catch (e: any) {
+                  console.log(`[AI] Falha no reparo com ${repairModel}:`, e?.message ?? e);
+                }
+              }
+            }
           }
         }
 

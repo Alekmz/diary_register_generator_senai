@@ -45,9 +45,18 @@ Sistema para geração automática de diários de aula utilizando IA (Gemini) co
    ```env
    GOOGLE_AI_API_KEY=sua_chave_aqui
    AI_GEMINI_ENABLED=true
-   AI_MODEL_NAME=gemini-1.5-pro
+   # Sugestão 2026: mais recente (preview)
+   AI_MODEL_NAME=gemini-3-flash-preview
    AI_TIMEOUT_MS=60000
    AI_MAX_OUTPUT_TOKENS=8192
+   AI_CACHE_ENABLED=true
+   AI_REPAIR_TRUNCATION_ENABLED=true
+   ```
+
+   Se você **trocar a API key**, é recomendado reupar os PDFs para gerar novos `fileId/uri`
+   (evita erros `403` de permissão em arquivos antigos):
+   ```bash
+   npm run upload-pdfs
    ```
 
 4. **Adicione os PDFs**:
