@@ -31,30 +31,86 @@ function isFilePermissionError(error: any): boolean {
   );
 }
 
+function tryRepairTruncatedJson(s: string): string | null {
+  let repaired = s;
+  
+  // Close any unterminated string
+  const quoteCount = (repaired.match(/(?<!\\)"/g) || []).length;
+  if (quoteCount % 2 !== 0) {
+    repaired += '"';
+  }
+  
+  // Count open brackets/braces and close them
+  let openBraces = 0;
+  let openBrackets = 0;
+  let inString = false;
+  for (let i = 0; i < repaired.length; i++) {
+    const ch = repaired[i];
+    if (ch === '\\' && inString) { i++; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{') openBraces++;
+    else if (ch === '}') openBraces--;
+    else if (ch === '[') openBrackets++;
+    else if (ch === ']') openBrackets--;
+  }
+
+  // Remove trailing comma before closing
+  repaired = repaired.replace(/,\s*$/, '');
+
+  for (let i = 0; i < openBrackets; i++) repaired += ']';
+  for (let i = 0; i < openBraces; i++) repaired += '}';
+  
+  try {
+    JSON.parse(repaired);
+    return repaired;
+  } catch {
+    return null;
+  }
+}
+
 function tryParseJsonStrict(s: string): OutputDTO {
-  // Limpar markdown se presente
   let cleaned = s.trim();
   
-  // Remover blocos de markdown ```json ... ```
   if (cleaned.startsWith('```json')) {
     cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
   } else if (cleaned.startsWith('```')) {
     cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
   }
   
-  // Pega o último bloco iniciando em { até o fim (evita cabeçalhos indesejados)
   const m = cleaned.match(/\{[\s\S]*\}$/);
   const raw = m ? m[0] : cleaned;
   
   try {
     const obj = JSON.parse(raw);
     return OutputSchema.parse(obj);
-  } catch (error) {
-    console.error('[AI] Erro ao parsear JSON:', error);
-    console.error('[AI] Texto recebido:', s);
-    console.error('[AI] Texto limpo:', cleaned);
-    console.error('[AI] Candidato JSON:', raw);
-    throw new Error(`Falha ao parsear resposta JSON: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+  } catch (firstError) {
+    // Attempt to repair truncated JSON before giving up
+    const repaired = tryRepairTruncatedJson(cleaned);
+    if (repaired) {
+      try {
+        const obj = JSON.parse(repaired);
+        console.warn('[AI] JSON truncado reparado com sucesso (resposta pode estar incompleta)');
+        const result = OutputSchema.safeParse(obj);
+        if (result.success) {
+          result.data.observacoes ??= [];
+          result.data.observacoes.push("Resposta da IA foi truncada e reparada automaticamente. Alguns dados podem estar incompletos.");
+          return result.data;
+        }
+      } catch { /* repair failed, fall through */ }
+    }
+
+    console.error('[AI] Erro ao parsear JSON:', firstError);
+    console.error('[AI] Primeiros 500 chars:', s.slice(0, 500));
+    
+    const isTruncation = firstError instanceof Error && 
+      (firstError.message.includes('Unterminated') || firstError.message.includes('Unexpected end'));
+    
+    throw new Error(
+      isTruncation 
+        ? `JSON_TRUNCATED: Resposta da IA foi cortada (posição ${s.length} chars). Tente novamente.`
+        : `Falha ao parsear resposta JSON: ${firstError instanceof Error ? firstError.message : 'Erro desconhecido'}`
+    );
   }
 }
 
@@ -81,7 +137,12 @@ export async function ensureBasePdfsUploaded() {
   );
 }
 
-async function withRetries<T>(fn: () => Promise<T>, tries=5, baseMs=1000): Promise<T> {
+function isQuotaZero(err: any): boolean {
+  const msg = err?.message || '';
+  return msg.includes('limit: 0') || msg.includes('quota') && msg.includes('limit: 0');
+}
+
+async function withRetries<T>(fn: () => Promise<T>, tries=2, baseMs=2000): Promise<T> {
   let lastErr: any;
   for (let i=0; i<tries; i++) {
     try { 
@@ -90,19 +151,21 @@ async function withRetries<T>(fn: () => Promise<T>, tries=5, baseMs=1000): Promi
     catch (err: any) {
       lastErr = err;
       
-      // Verificar se é erro de rate limit
-      if (err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('rate')) {
-        const retryDelay = err.message?.includes('RetryInfo') ? 
-          Math.min(30000, baseMs * Math.pow(2, i)) : // Delay máximo de 30s
-          baseMs * Math.pow(2, i);
-        
+      // Quota = 0 means the model isn't available on this tier at all — no point retrying
+      if (isQuotaZero(err)) {
+        console.log(`[AI] Quota zero para este modelo (indisponível no free tier). Pulando retries.`);
+        break;
+      }
+      
+      const isRateLimit = err.message?.includes('429') || err.message?.includes('quota') || err.message?.includes('rate');
+      
+      if (isRateLimit) {
+        const retryDelay = Math.min(30000, baseMs * Math.pow(2, i));
         console.log(`[AI] Rate limit atingido. Tentativa ${i + 1}/${tries}. Aguardando ${retryDelay}ms...`);
-        
         if (i < tries - 1) {
           await new Promise(r => setTimeout(r, retryDelay));
         }
       } else {
-        // Para outros erros, usar delay normal
         if (i < tries - 1) {
           await new Promise(r => setTimeout(r, baseMs * Math.pow(2, i)));
         }
@@ -112,17 +175,11 @@ async function withRetries<T>(fn: () => Promise<T>, tries=5, baseMs=1000): Promi
   throw lastErr;
 }
 
-// Lista de modelos para fallback em caso de rate limit
-// Observação:
-// - Modelos "preview" mudam mais rápido. Use env.AI_MODEL_NAME para controlar.
-// - Ordem prioriza velocidade (Flash) e depois qualidade (Pro).
+// Lista de modelos para fallback em caso de rate limit.
+// Apenas modelos disponíveis no free tier. Ordem prioriza velocidade.
 const FALLBACK_MODELS = [
-  "gemini-3-flash-preview", // mais recente (preview), tende a ser rápido
-  "gemini-2.5-flash",       // estável (GA), bom custo/latência
-  "gemini-3-pro-preview",   // mais forte (preview), melhor para casos difíceis
-  "gemini-2.5-pro",         // estável (GA), mais preciso
-  "gemini-1.5-flash",  // Fallback
-  "gemini-1.5-pro",    // Fallback
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
 ];
 
 export async function generateFromGemini(userPrompt: string, planoCurso: string): Promise<OutputDTO> {
@@ -286,7 +343,7 @@ async function attemptGeneration(
             // Tentativa extra para melhorar quebras de página/linha:
             // Se detectarmos itens truncados, tentar uma segunda passada com modelo mais forte.
             if (env.AI_REPAIR_TRUNCATION_ENABLED) {
-              const repairModels = ["gemini-3-pro-preview", "gemini-2.5-pro"].filter(m => m !== modelName);
+              const repairModels = ["gemini-2.5-flash", "gemini-2.0-flash"].filter(m => m !== modelName);
               for (const repairModel of repairModels) {
                 try {
                   console.log(`[AI] Tentando reparo de truncamento com: ${repairModel}`);
@@ -378,8 +435,11 @@ async function attemptGeneration(
         throw error;
       }
       
-      // Se não é erro de rate limit, não tentar outros modelos
-      if (!error.message?.includes('429') && !error.message?.includes('quota')) {
+      const isModelNotFound = error.message?.includes('404') || error.message?.includes('not found');
+      const isRateLimit = error.message?.includes('429') || error.message?.includes('quota');
+      const isTruncated = error.message?.includes('JSON_TRUNCATED');
+      
+      if (!isRateLimit && !isModelNotFound && !isTruncated) {
         throw error;
       }
       
@@ -388,5 +448,9 @@ async function attemptGeneration(
     }
   }
   
-  throw new Error(`Todos os modelos falharam. Último erro: ${lastError?.message || 'Erro desconhecido'}`);
+  const lastMsg = lastError?.message || '';
+  if (lastMsg.includes('429') || lastMsg.includes('quota')) {
+    throw new Error("429 — Cota da API Gemini esgotada para todos os modelos disponíveis.");
+  }
+  throw new Error(`Todos os modelos falharam. Último erro: ${lastMsg || 'Erro desconhecido'}`);
 }

@@ -2,8 +2,8 @@
   "resources": [
     {
       "name": "Adaptação SC - CT Desenvolvimento de Sistemas Presencial",
-      "fileId": "files/damgi0c3807w",
-      "uri": "https://generativelanguage.googleapis.com/v1beta/files/damgi0c3807w",
+      "fileId": "files/tblu9ye29be4",
+      "uri": "https://generativelanguage.googleapis.com/v1beta/files/tblu9ye29be4",
       "mimeType": "application/pdf",
       "source": "local",
       "type": "plano_curso",
@@ -18,8 +18,8 @@
     },
     {
       "name": "Projeto de Curso_Informática para Internet 1000 SENAI SED",
-      "fileId": "files/pg46i7zwu6fu",
-      "uri": "https://generativelanguage.googleapis.com/v1beta/files/pg46i7zwu6fu",
+      "fileId": "files/j1eaf7sfs5xi",
+      "uri": "https://generativelanguage.googleapis.com/v1beta/files/j1eaf7sfs5xi",
       "mimeType": "application/pdf",
       "source": "local",
       "type": "plano_curso",
@@ -34,8 +34,8 @@
     },
     {
       "name": "Projeto de Curso_Programação de Jogos Digitais 1000 SENAI SED",
-      "fileId": "files/hc70jlt74im6",
-      "uri": "https://generativelanguage.googleapis.com/v1beta/files/hc70jlt74im6",
+      "fileId": "files/gti9tgr7r5n8",
+      "uri": "https://generativelanguage.googleapis.com/v1beta/files/gti9tgr7r5n8",
       "mimeType": "application/pdf",
       "source": "local",
       "type": "plano_curso",
@@ -51,8 +51,8 @@
     },
     {
       "name": "arquivos_MSEP",
-      "fileId": "files/hs7uvjytlvg5",
-      "uri": "https://generativelanguage.googleapis.com/v1beta/files/hs7uvjytlvg5",
+      "fileId": "files/0wfvh6cjbthz",
+      "uri": "https://generativelanguage.googleapis.com/v1beta/files/0wfvh6cjbthz",
       "mimeType": "application/pdf",
       "source": "local",
       "type": "metodologia",
